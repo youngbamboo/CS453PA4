@@ -1,0 +1,907 @@
+
+package mjparser;
+import java_cup.runtime.*;
+import java.util.*;
+import java.io.PrintWriter;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+
+import java.io.FileInputStream;
+import ast.node.*;
+import label.*;
+
+parser code {:
+
+    public PrintWriter out; 
+    
+    public String programName;
+    
+
+    public void unrecovered_syntax_error(Symbol cur_SymbolValue) {
+        report_fatal_error("Fatal syntax error", cur_SymbolValue);
+    }
+    
+    public void report_fatal_error(String message, Object info) {
+        report_error(message, info);
+        done_parsing();
+        Symbol SymbolValue = (Symbol)info;
+        mjparser.SymbolValue tok = (mjparser.SymbolValue)SymbolValue.value;
+        throw new mjparser.ParseException("Fatal parsing error", 
+                                          tok.line, tok.pos);
+    }
+    
+    public void report_error(String message, Object info) {
+        Symbol SymbolValue = (Symbol)info;
+        mjparser.SymbolValue tok = (mjparser.SymbolValue)SymbolValue.value;
+        System.err.println("[" + tok.line + "," + tok.pos + "] " 
+                               + message + " at " + tok.toString() );
+    }
+            
+:}
+
+/* Notice: all terminals declared here */
+terminal SymbolValue PLUS, MINUS, TIMES, LPAREN, RPAREN;
+terminal SymbolValue LBRACE, RBRACE;
+terminal SymbolValue BOOLEAN, INT;
+terminal SymbolValue BYTE;
+terminal SymbolValue MAIN, IMPORT;
+terminal SymbolValue IF, ELSE;
+terminal SymbolValue LT;
+terminal SymbolValue EQUAL;
+terminal SymbolValue AND, NOT;
+terminal SymbolValue WHILE;
+terminal SymbolValue COMMA, DOT;
+terminal SymbolValue NEW, PUBLIC, RETURN, STATIC;
+terminal SymbolValue STRING, VOID;
+terminal SymbolValue CLASS, EXTENDS;
+terminal SymbolValue LBRACKET, RBRACKET;
+terminal SymbolValue LENGTH;
+terminal SymbolValue SEMI;
+terminal SymbolValue ASSIGN;
+
+terminal SymbolValue MEGGY;
+terminal SymbolValue MEGGYCOLOR;
+terminal SymbolValue MEGGYBUTTON;
+terminal SymbolValue MEGGYTONE;
+terminal SymbolValue MEGGYSETPIXEL;
+terminal SymbolValue MEGGYSETAUXLEDS;
+terminal SymbolValue MEGGYTONESTART;
+terminal SymbolValue MEGGYDELAY;
+terminal SymbolValue MEGGYGETPIXEL;
+terminal SymbolValue MEGGYCHECKBUTTON;
+
+terminal SymbolValue INT_LITERAL, ID;
+terminal SymbolValue TRUE, FALSE;
+terminal SymbolValue COLOR_LITERAL, BUTTON_LITERAL, TONE_LITERAL;
+terminal SymbolValue THIS;
+terminal SymbolValue INTLITERAL;
+
+terminal Integer NUMBER;
+
+/* bogus terminal for unary precedence declaration */
+terminal UMINUS;
+
+
+non terminal program;
+
+non terminal statement;
+non terminal statement_list;
+non terminal IStatement stmt;
+non terminal IStatement elseOption;
+non terminal main_class;
+non terminal IExp exp;
+non terminal BlockStatement stmts;
+
+/* Declare precedence and associativity  here */
+
+precedence right UMINUS;
+precedence left BYTE;
+
+precedence left INT_LITERAL,PLUS, MINUS,TIMES, ELSE, RPAREN;
+
+//precedence right LPAREN;
+
+
+precedence left EQUAL, AND;
+
+/* Meggy Java Grammar */
+start with program;
+
+program ::= 
+    IMPORT MEGGY SEMI main_class
+    ;
+
+main_class ::=
+        CLASS ID:name 
+	{: java.io.PrintStream sout 
+                    = new java.io.PrintStream(
+                        new java.io.FileOutputStream(name.lexeme+".java.s"));
+                parser.out = new PrintWriter(sout);
+		
+                // Check filename is class name, if not exit with error message
+                //System.exit(0);   
+        :}        
+        LBRACE PUBLIC STATIC VOID MAIN 
+        LPAREN STRING LBRACKET RBRACKET ID:param RPAREN
+        LBRACE
+	{: 
+			// Meggy.setPixel( (byte)2, (byte)3, Meggy.Color.BLUE );
+			
+            System.out.println("Generate prolog using avrH.rtl.s");
+            InputStream mainPrologue=null;
+            BufferedReader reader=null;
+            try {
+                // The syntax for loading a text resource file 
+                // from a jar file here:
+                // http://www.rgagnon.com/javadetails/java-0077.html
+                mainPrologue 
+                    = this.getClass().getClassLoader().getResourceAsStream(
+                        "avrH.rtl.s");
+                reader = new BufferedReader(new 
+                    InputStreamReader(mainPrologue));
+
+                String line = null;
+                while ((line = reader.readLine()) != null) {
+                  parser.out.println(line);
+                }
+            } catch ( Exception e2) {
+                e2.printStackTrace();
+            }
+            finally{
+                try{
+                    if(mainPrologue!=null) mainPrologue.close();
+                    if(reader!=null) reader.close();
+                }
+                catch (IOException e) {
+                   e.printStackTrace();
+                }
+            }
+
+            
+          :} 
+          stmts
+        RBRACE
+        RBRACE 
+	 {:
+			System.out.println("Generate epilog using avrF.rtl.s");
+            InputStream mainEpilogue=null;
+            BufferedReader epireader=null;
+            try {
+                // The syntax for loading a text resource file 
+                // from a jar file here:
+                // http://www.rgagnon.com/javadetails/java-0077.html
+                mainEpilogue 
+                    = this.getClass().getClassLoader().getResourceAsStream(
+                        "avrF.rtl.s");
+                epireader = new BufferedReader(new 
+                    InputStreamReader(mainEpilogue));
+
+                String line = null;
+                while ((line = epireader.readLine()) != null) {
+                  parser.out.println(line);
+                }
+            } catch ( Exception e2) {
+                e2.printStackTrace();
+            }
+            finally{
+                try{
+                    if(mainEpilogue!=null) mainEpilogue.close();
+                    if(epireader!=null) epireader.close();
+                }
+                catch (IOException e) {
+                   e.printStackTrace();
+                }
+            }
+            parser.out.flush();
+          :}
+;
+        
+stmts   ::= stmts:list stmt:s
+        {: 
+            if(s != null) {
+                list.getStatements().add(s);
+            }
+	    /*else {
+                list = new BlockStatement();
+            } */
+            RESULT = list; 
+        :}
+       
+		|{: RESULT = new BlockStatement(); :}
+;
+
+                
+stmt ::= LBRACE stmts RBRACE	
+		|MEGGYDELAY LPAREN exp RPAREN SEMI
+		{:
+			System.out.println("Generate assembly languages: MEGGYDELAY");
+			String as="call   _Z8delay_msj\n";
+			parser.out.println(as);
+		:}
+		| MEGGYSETPIXEL LPAREN exp COMMA exp COMMA exp RPAREN SEMI
+			{:
+				System.out.println("Generate assembly languages: MEGGYSETPIXEL");
+				String as="#MEGGY Setpixel\n";
+				as+="# load a one byte expression off stack\n";
+				as+="pop    r20\n";
+				as+="# load a one byte expression off stack\n";
+				as+="pop    r22\n";
+				as+="# load a one byte expression off stack\n";
+				as+="pop    r24\n";
+				as+="call   _Z6DrawPxhhh\n";
+	        	as+="call   _Z12DisplaySlatev\n";
+				parser.out.println(as);
+			:}
+		| IF LPAREN exp RPAREN 
+		{:
+            Label label_a=new Label();
+		    Label label_b=new Label();
+		    String as="#If statement\n";
+		    as+="#use cp to set SREG\n";
+		    as+="cp     r24, r25\n";
+		    as+="#WANT breq "+label_a.toString()+"\n";//a
+		    as+="brne   "+label_b.toString()+"\n";//b
+		    as+="jmp    "+label_a.toString()+"\n";//a
+		    as+=label_b.toString()+":\n";//a
+		    parser.out.println(as);
+		:}
+		stmt 
+		{:
+		Label label_a=new Label();
+		String as="jmp    "+label_a.toString()+"\n";//a
+		parser.out.println(as);
+		:} elseOption  
+		/*ELSE  {:
+		    String as="#Else statement\n";
+		    as+="MJ_L"+(Label.getCount()-2)+":\n";
+		    parser.out.println(as);
+		:}
+		stmt */
+		
+		| WHILE LPAREN exp RPAREN LBRACE
+		{:
+			System.out.println("WHILE LPAREN exp RPAREN LBRACE");
+		    Label label_a=new Label();//0
+		    Label label_b=new Label();//1
+			Label label_c=new Label();//2
+		    String as="#While ()\n";
+			as+=label_a.toString()+":\n";
+		    as+="# True/1 expression\n";
+			as+="ldi    r22, 1\n";
+			as+="# push one byte expression onto stack\n";
+			as+="push   r22\n";
+
+			as+="# if not(condition)\n";
+			as+="# load a one byte expression off stack\n";
+			as+="pop    r24\n";
+			as+="ldi    r25,0\n";
+			as+="cp     r24, r25\n";
+			as+="# WANT breq "+label_c.toString()+"\n";
+			as+="brne   "+label_b.toString()+"\n";
+			as+="jmp    "+label_c.toString()+"\n";
+			
+			as+="# while loop body\n";
+			as+=label_b.toString()+":\n";
+		    parser.out.println(as);
+		:}		
+		stmts 
+		{:
+			String as="#Jump to while\n";
+		    as+="jmp    MJ_L"+(Label.getCount()-3)+"\n";
+			
+		    parser.out.println(as);
+		:}
+		RBRACE
+		{:
+			String as="# end of while\n";
+			as+="MJ_L"+(Label.getCount()-1)+":\n";
+			 parser.out.println(as);
+		:}
+		;
+elseOption ::= ELSE  {:
+		    String as="#Else statement\n";
+		    as+="MJ_L"+(Label.getCount()-3)+":\n";
+		    parser.out.println(as);
+		:} stmt
+		{:
+			String as="#Else statement\n";
+		    as+="MJ_L"+(Label.getCount()-1)+":\n";
+		    parser.out.println(as);
+		:}
+		| {:String as="#No Else statement\n";
+		    as+="MJ_L"+(Label.getCount()-3)+":\n";
+			as+="MJ_L"+(Label.getCount()-1)+":\n";
+		    parser.out.println(as);:};
+/*
+Statement	::=	"{" ( Statement )* "}"
+|	"Meggy.setPixel" "(" Expression "," Expression "," Expression ")" ";"
+|	"Meggy.delay" "(" Expression ")" ";"
+|	"if" "(" Expression ")" Statement
+|	"if" "(" Expression ")" Statement "else" Statement
+|	"while" "(" Expression ")" Statement
+ 
+ Expression	::=	Expression ( "&&" | "==" | "+" | "-" | "*" ) Expression
+|	 "-" Expression
+|	"Meggy.getPixel" "(" Expression "," Expression ")"
+|	"Meggy.checkButton" "(" Expression ")"
+|	"(" "byte" ")" Expression
+|	<INT_LITERAL>
+|	<COLOR_LITERAL>
+|	<BUTTON_LITERAL>
+|	"true"
+|	"false"
+|	"!" Expression
+|	"(" Expression ")"
+ */   
+exp ::=INT_LITERAL:n
+	{:
+		RESULT = new IntLiteral(n.line,n.pos,n.lexeme,n.value);
+		
+              System.out.println("Generate assembly languages: INT_LITERAL "+String.valueOf(n));
+              
+              try{
+              	String num=String.valueOf(n);
+              	String as="# Load constant int "+num+"\n";
+              	as+="ldi    r24,lo8("+num+")\n";
+				as+="ldi    r25,hi8("+num+")\n";
+				as+="push    r25\n";
+				as+="push    r24\n";
+				parser.out.println(as);
+              }catch ( Exception e2) {
+                e2.printStackTrace();
+              }
+	:}        
+
+	| exp:a TIMES:op exp:b
+        {:
+			System.out.println("exp:a TIMES:op exp:b");
+            RESULT = new MulExp(op.line,op.pos,a,b);
+			System.out.println("Generate assembly languages: "+String.valueOf(a)+" TIMES "+String.valueOf(b));
+            try{
+				String exp_a=String.valueOf(a);
+				String exp_b=String.valueOf(b);
+				if(exp_a.startsWith("ast.node.ByteCast")&&exp_b.startsWith("ast.node.ByteCast"))
+				{
+					System.out.println("byte * byte");
+					String as="# # load a two byte expression off stack\n";
+					as+="pop    r18\n";
+					as+="# load a two byte expression off stack\n";
+					as+="pop    r24\n";
+				
+					as+="muls	r24,r18\n";
+					
+					as+="push   r0\n";
+					as+="mov	r24,r0\n";
+					parser.out.println(as);
+				}
+				else
+				{
+				String as="# # load a two byte expression off stack\n";
+				as+="pop    r18\n";
+				as+="pop    r19\n";
+				as+="# load a two byte expression off stack\n";
+				as+="pop    r24\n";
+				as+="pop    r25\n";
+				
+				as+="muls	r24,r18\n";
+				as+="push   r1\n";
+				as+="push   r0\n";
+				as+="mov	r24,r0\n";
+				as+="mov	r25,r1\n";
+				parser.out.println(as);
+				}
+			}catch ( Exception e2) {
+                e2.printStackTrace();
+            }
+        :}
+	
+    |   exp:a PLUS:op exp:b
+        {:
+        	System.out.println("exp:a PLUS:op exp:b");
+            RESULT = new PlusExp(op.line,op.pos,a,b);
+			System.out.println("Generate assembly languages: "+String.valueOf(a)+" PLUS "+String.valueOf(b));
+              
+            try{
+              	String num_a=String.valueOf(a);
+				String num_b=String.valueOf(b);
+              	String as="# # load a two byte expression off stack\n";
+              	as+="pop    r18\n";
+				as+="pop    r19\n";
+				as+="# load a two byte expression off stack\n";
+				as+="pop    r24\n";
+				as+="pop    r25\n";
+				as+="# Do INT sub operation\n";
+				as+="add    r24, r18\n";
+				as+="adc    r25, r19\n";
+				as+="# push hi order byte first\n";
+				as+="# push two byte expression onto stack\n";
+				as+="push   r25\n";
+				as+="push   r24\n";
+              	parser.out.println(as);
+              }catch ( Exception e2) {
+                e2.printStackTrace();
+            }
+        :}
+
+    |   exp:a MINUS:op exp:b
+        {:
+        	System.out.println("MINUS:op");
+            RESULT = new MinusExp(op.line,op.pos,a,b);
+			System.out.println("Generate assembly languages: "+String.valueOf(a)+" MINUS "+String.valueOf(b));
+              
+            try{
+              	String num_a=String.valueOf(a);
+				String num_b=String.valueOf(b);
+              	String as="# # load a two byte expression off stack\n";
+              	as+="pop    r18\n";
+				as+="pop    r19\n";
+				as+="# load a two byte expression off stack\n";
+				as+="pop    r24\n";
+				as+="pop    r25\n";
+				as+="# Do INT sub operation\n";
+				as+="sub    r24, r18\n";
+				as+="sbc    r25, r19\n";
+				as+="# push hi order byte first\n";
+				as+="# push two byte expression onto stack\n";
+				as+="push   r25\n";
+				as+="push   r24\n";
+              	parser.out.println(as);
+              }catch ( Exception e2) {
+                e2.printStackTrace();
+            }
+        :}
+		
+	|	exp:a AND:op exp:b
+		{:
+			System.out.println("exp:a AND:op exp:b");
+			RESULT = new AndExp(op.line,op.pos,a,b);
+			System.out.println("Generate assembly languages: "+String.valueOf(a)+" AND "+String.valueOf(b));
+			
+			try{
+              	String as="# # load a two byte expression off stack\n";
+              	as+="pop    r18\n";
+				as+="pop    r19\n";
+				as+="# load a two byte expression off stack\n";
+				as+="pop    r24\n";
+				as+="pop    r25\n";
+				as+="# Do INT sub operation\n";
+				as+="add    r24, r18\n";
+				as+="adc    r25, r19\n";
+				as+="# push hi order byte first\n";
+				as+="# push two byte expression onto stack\n";
+				as+="push   r25\n";
+				as+="push   r24\n";
+              	parser.out.println(as);
+              }catch ( Exception e2) {
+                e2.printStackTrace();
+            }
+		:}
+	
+	|	exp:a EQUAL:op exp:b
+		{:
+			System.out.println("exp:a EQUAL:op exp:b");
+			Label label_a=new Label();//25
+			Label label_b=new Label();//26
+			Label label_c=new Label();//27
+			RESULT = new EqualExp(op.line,op.pos,a,b);
+			String as="# equality check expression\n";
+			/*
+			as+="# # load a two byte expression off stack\n";
+			as+="pop    r18\n";
+			as+="pop    r19\n";
+			as+="# load a two byte expression off stack\n";
+			as+="pop    r24\n";
+			as+="pop    r25\n";
+			as+="pop r24\n";
+			as+="pop r25\n";
+			
+			as+="cp r24, r18\n";
+			as+="cpc r25, r19\n";
+			*/
+			as+="# pop right and then left operands\n";
+			as+="pop    r24\n";
+			as+="pop    r25\n";			
+			as+="cp r24, r25\n";
+			
+			as+="breq "+label_b.toString()+"\n";
+			
+			as+=label_a.toString()+":\n";
+			as+="ldi     r24, 0\n";
+			as+="jmp      "+label_c.toString()+"\n";
+			as+=label_b.toString()+":\n";
+			as+="ldi     r24, 1\n";
+			as+=label_c.toString()+":\n";
+			as+="push r24\n";
+			parser.out.println(as);
+		:}
+	
+   /* |   LPAREN exp:a PLUS:op exp:b RPAREN
+        {:
+			System.out.println("LPAREN exp:a PLUS:op exp:b RPAREN");
+			RESULT=new PlusExp(op.line,op.pos,a,b);
+			System.out.println("Generate assembly languages: "+String.valueOf(a)+" PLUS "+String.valueOf(b));
+             
+			try{
+              	String num_a=String.valueOf(a);
+				String num_b=String.valueOf(b);
+              	String as="# # load a two byte expression off stack\n";
+              	as+="pop    r18\n";
+				as+="pop    r19\n";
+				as+="# load a two byte expression off stack\n";
+				as+="pop    r24\n";
+				as+="pop    r25\n";
+				as+="# Do INT sub operation\n";
+				as+="add    r24, r18\n";
+				as+="adc    r25, r19\n";
+				as+="# push hi order byte first\n";
+				as+="# push two byte expression onto stack\n";
+				as+="push   r25\n";
+				as+="push   r24\n";
+              	parser.out.println(as);
+              }catch ( Exception e2) {
+                e2.printStackTrace();
+            }
+        :}*/
+	/*|   LPAREN exp:a TIMES:op exp:b RPAREN
+        {:
+			System.out.println("LPAREN exp:a TIMES:op exp:b RPAREN");
+			RESULT=new MulExp(op.line,op.pos,a,b);
+			System.out.println("Generate assembly languages: LPAREN "+String.valueOf(a)+" TIMES "+String.valueOf(b)+" RPAREN");
+            try{
+				String exp_a=String.valueOf(a);
+				String exp_b=String.valueOf(b);
+				if(exp_a.startsWith("ast.node.ByteCast")&&exp_b.startsWith("ast.node.ByteCast"))
+				{
+					System.out.println("byte * byte");
+					String as="# # load a two byte expression off stack\n";
+					as+="pop    r18\n";
+					as+="# load a two byte expression off stack\n";
+					as+="pop    r24\n";
+				
+					as+="muls	r24,r18\n";
+				
+					as+="push   r0\n";
+					as+="mov	r24,r0\n";
+					parser.out.println(as);
+				}
+				else
+				{
+				String as="# # load a two byte expression off stack\n";
+				as+="pop    r18\n";
+				as+="pop    r19\n";
+				as+="# load a two byte expression off stack\n";
+				as+="pop    r24\n";
+				as+="pop    r25\n";
+				
+				as+="muls	r24,r18\n";
+				as+="push   r1\n";
+				as+="push   r0\n";
+				as+="mov	r24,r0\n";
+				as+="mov	r25,r1\n";
+				parser.out.println(as);
+				}
+			}catch ( Exception e2) {
+                e2.printStackTrace();
+            }
+        :}*/
+	/*|   LPAREN exp:a MINUS:op exp:b RPAREN
+        {:
+			
+			System.out.println("LPAREN exp:a MINUS:op exp:b RPAREN");
+            RESULT = new MinusExp(op.line,op.pos,a,b);
+			System.out.println("Generate assembly languages: "+String.valueOf(a)+" MINUS "+String.valueOf(b));
+              
+            try{
+              	String num_a=String.valueOf(a);
+				String num_b=String.valueOf(b);
+              	String as="# # load a two byte expression off stack\n";
+              	as+="pop    r18\n";
+				as+="pop    r19\n";
+				as+="# load a two byte expression off stack\n";
+				as+="pop    r24\n";
+				as+="pop    r25\n";
+				as+="# Do INT sub operation\n";
+				as+="sub    r24, r18\n";
+				as+="sbc    r25, r19\n";
+				as+="# push hi order byte first\n";
+				as+="# push two byte expression onto stack\n";
+				as+="push   r25\n";
+				as+="push   r24\n";
+              	parser.out.println(as);
+              }catch ( Exception e2) {
+                e2.printStackTrace();
+            }
+        :}*/
+    |   LPAREN BYTE:op RPAREN exp:a
+        {:
+			RESULT=new ByteCast(op.line,op.pos,a);
+			
+		    System.out.println("Generate assembly languages: (byte)"+String.valueOf(a));
+		      
+		    try{
+				String as="# Casting int to byte by popping\n";
+				as+="# 2 bytes off stack and only pushing low order bits\n";
+				as+="# back on.  Low order bits are on top of stack.\n";
+			
+				as+="pop    r24\n";
+				as+="pop    r25\n";
+				as+="push    r24\n";
+
+		      	parser.out.println(as);
+		      }catch ( Exception e2) {
+		        e2.printStackTrace();
+		    }
+        :}
+    /*|   LPAREN BYTE:op RPAREN LPAREN exp:a RPAREN
+        {:
+			System.out.println("LPAREN BYTE:op RPAREN LPAREN exp:a RPAREN");
+			RESULT=new ByteCast(op.line,op.pos,a);
+			System.out.println("Generate assembly languages: (byte)"+String.valueOf(a));
+		      
+		    try{
+				String as="# Casting int to byte by popping\n";
+				as+="# 2 bytes off stack and only pushing low order bits\n";
+				as+="# back on.  Low order bits are on top of stack.\n";
+			
+				as+="pop    r24\n";
+				as+="pop    r25\n";
+				as+="push    r24\n";
+
+		      	parser.out.println(as);
+		    }catch ( Exception e2) {
+		        e2.printStackTrace();
+		    }
+        :}*/
+
+	/*|   LPAREN INT_LITERAL:n RPAREN
+        {:
+			RESULT = new IntLiteral(n.line,n.pos,n.lexeme,n.value);
+        :}
+		*/
+    |	COLOR_LITERAL:n
+    	{:
+    		System.out.println("COLOR_LITERAL:n");
+		RESULT = new ColorLiteral(n.line,n.pos,n.lexeme,n.value);
+		System.out.println("Generate assembly languages: color "+String.valueOf(n));
+              
+              try{
+              	String col=String.valueOf(n);
+              	String num="0";
+              	if(col.equalsIgnoreCase("Meggy.Color.DARK")){
+              	  num="0";
+              	}
+              	else if(col.equalsIgnoreCase("Meggy.Color.RED")){
+              	  num="1";
+              	}
+              	if(col.equalsIgnoreCase("Meggy.Color.ORANGE")){
+              	  num="2";
+              	}
+              	if(col.equalsIgnoreCase("Meggy.Color.YELLOW")){
+              	  num="3";
+              	}
+              	if(col.equalsIgnoreCase("Meggy.Color.GREEN")){
+              	  num="4";
+              	}
+              	if(col.equalsIgnoreCase("Meggy.Color.BLUE")){
+              	  num="5";
+              	}
+              	if(col.equalsIgnoreCase("Meggy.Color.VIOLET")){
+              	  num="6";
+              	}
+              	if(col.equalsIgnoreCase("Meggy.Color.WHITE")){
+              	  num="7";
+              	}
+                String as="# Color expression "+col+"\n";
+                as+="ldi    r22,"+num+"\n";
+	        as+="# push one byte expression onto stack\n";
+	        as+="push   r22\n";
+	        /*
+			as+="# load a one byte expression off stack\n";
+	        as+="pop    r20\n";
+	        as+="# load a one byte expression off stack\n";
+	        as+="pop    r22\n";
+	        as+="# load a one byte expression off stack\n";
+	        as+="pop    r24\n";
+	        */
+	        parser.out.println(as);
+              	
+              }catch ( Exception e2) {
+                e2.printStackTrace();
+              }
+        :}
+	
+	|	BUTTON_LITERAL:n
+    	{:
+    		System.out.println("BUTTON_LITERAL:n");
+			RESULT = new ButtonLiteral(n.line,n.pos,n.lexeme,n.value);
+			
+			try{
+				String button=String.valueOf(n);
+				String num="0";
+
+	            if(button.equalsIgnoreCase("Meggy.Button.UP")) num="4";
+	            if(button.equalsIgnoreCase("Meggy.Button.DOWN")) num="8";
+	            if(button.equalsIgnoreCase("Meggy.Button.LEFT")) num="16";
+	            if(button.equalsIgnoreCase("Meggy.Button.RIGHT")) num="32";
+	              	
+	            String as="# Button expression "+button+"\n";
+	            as+="ldi	r22,"+num+"\n";
+	            as+="push	r22\n";
+               	// incomplete
+	        	parser.out.println(as);
+              	
+              }catch ( Exception e2) {
+                e2.printStackTrace();
+              }
+        :}
+	
+	|	FALSE:n
+    	{:
+    		System.out.println("FALSE:n");
+			RESULT = new FalseLiteral(n.line,n.pos,n.lexeme,n.value);
+		try{
+			String as="# False/0 expression\n";
+            as+="    ldi    r24, 0\n";
+    		as+="# push one byte expression onto stack\n";
+    		as+="push   r24\n";
+	        parser.out.println(as);
+			} catch ( Exception e2) {
+				e2.printStackTrace();
+			}
+        :}
+		
+	|	TRUE:n
+    	{:
+    		System.out.println("TRUE:n");
+			RESULT = new TrueLiteral(n.line,n.pos,n.lexeme,n.value);
+		try{
+			String as="# True/1 expression\n";
+			as+="    ldi    r24, 1\n";
+			as+="# push one byte expression onto stack\n";
+			as+="push   r24\n";
+			parser.out.println(as);
+		} catch ( Exception e2) {
+			e2.printStackTrace();
+		}
+        :}	
+	
+	|	NOT:n exp:a
+    	{:
+    		System.out.println("NOT exp a");
+		RESULT = new NotExp(n.line,n.pos,a);
+		Label label_a=new Label();
+			Label label_b=new Label();
+			Label label_c=new Label();
+			
+			String as="# Comare equal\n";
+			as+="# # load a byte expression off stack\n";
+
+			as+="pop    r24\n";
+
+			as+="# load 0\n";
+			as+="ldi    r25,0\n";
+
+			as+="cp r24,r25\n";
+			
+			
+			
+			as+="breq "+label_a.toString()+"\n";
+			as+=label_b.toString()+":\n";
+			as+="ldi     r24, 0\n";
+			as+="jmp      "+label_c.toString()+"\n";
+			as+=label_a.toString()+":\n";
+			as+="ldi     r24, 1\n";
+			as+=label_c.toString()+":\n";
+			as+="push r24\n";
+			parser.out.println(as);
+        :}	
+	
+	|	MINUS:n exp:a
+    	{:
+    		System.out.println("MINUS exp a");
+			RESULT = new NegExp(n.line,n.pos,a);
+        :}
+		
+	|	MEGGYGETPIXEL:n LPAREN exp:a COMMA exp:b RPAREN
+		{:
+			System.out.println("MEGGYGETPIXEL");
+			RESULT = new MeggyGetPixel(n.line,n.pos,a,b);
+			String as="### Meggy.getPixel(x,y) call\n";
+    			as+="pop    r22\n";
+    			as+="pop    r24\n";
+    			as+="call   _Z6ReadPxhh\n";
+    			as+="push   r24\n";
+			parser.out.println(as);
+		:}
+
+	 
+	|	MEGGYCHECKBUTTON:n LPAREN exp:a RPAREN
+		{:
+			System.out.println("MEGGYCHECKBUTTON "+String.valueOf(a));
+			RESULT = new MeggyCheckButton(n.line,n.pos,a);
+			try {
+				String as = "";
+			    Label label_a = new Label();
+			    Label label_b = new Label();
+                            Label label_c = new Label();
+			    Label label_d = new Label();
+			    Label label_e = new Label();
+
+			    String button=String.valueOf(a);
+			    String num="0";
+			    if(button.equalsIgnoreCase("Meggy.Button.B")){
+              	  		num="1";
+				as+="### MeggyCheckButton\n";
+			    as+="call    _Z16CheckButtonsDownv\n";
+			    as+="lds    r24, Button_B\n";
+              		    }
+			    else if(button.equalsIgnoreCase("Meggy.Button.A")){
+				num="2";
+				as+="### MeggyCheckButton\n";
+			    as+="call    _Z16CheckButtonsDownv\n";
+			    as+="lds    r24, Button_A\n";
+			    }
+			    else if(button.equalsIgnoreCase("Meggy.Button.Up")){
+				num="4";
+				as+="### MeggyCheckButton\n";
+			    as+="call    _Z16CheckButtonsDownv\n";
+			    as+="lds    r24, Button_Up\n";
+			    }
+		            else if(button.equalsIgnoreCase("Meggy.Button.Down")){
+				num="8";
+				as+="### MeggyCheckButton\n";
+			    as+="call    _Z16CheckButtonsDownv\n";
+			    as+="lds    r24, Button_Down\n";
+			    }
+			    else if(button.equalsIgnoreCase("Meggy.Button.Left")){
+				num="16";
+				as+="### MeggyCheckButton\n";
+			    as+="call    _Z16CheckButtonsDownv\n";
+			    as+="lds    r24, Button_Left\n";
+			    }
+                            else if(button.equalsIgnoreCase("Meggy.Button.Right")){
+				num="32";
+				as+="### MeggyCheckButton\n";
+			    as+="call    _Z16CheckButtonsDownv\n";
+			    as+="lds    r24, Button_Right\n";
+			    }
+			    
+			    as+="# if button value is zero, push 0 else push 1\n";
+			    as+="tst    r24\n";
+			     
+			    as+="breq   "+label_a.toString()+"\n";//a
+				
+			    as+=label_b.toString()+":\n";//b
+			    as+="ldi    r24, 1\n";
+			    as+="jmp    "+label_c.toString()+"\n";//c
+			    as+=label_a.toString()+":\n";//a
+			    as+=label_c.toString()+":\n";//c
+			    as+="# push one byte expression onto stack\n";
+			    as+="push   r24\n";
+			    as+="# load condition and branch if false\n";
+			    as+="# load a one byte expression off stack\n";
+			    as+="pop    r24\n";
+			    as+="#load zero into reg\n";
+			    as+="ldi    r25, 0\n";
+			   
+				parser.out.println(as);
+				
+			} catch	(Exception e2){
+				e2.printStackTrace();
+			}
+		:}
+		|   LPAREN exp:a RPAREN
+		{:
+			System.out.println("MEGGYCHECKBUTTON ");
+		:}
+    ;
+
+
+
+
+

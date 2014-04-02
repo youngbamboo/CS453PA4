@@ -1,0 +1,27 @@
+2014-03-27 15:32:04,845 [main] FATAL ui.AVRSim - Encountered fatal error...
+java.awt.HeadlessException: 
+No X11 DISPLAY variable was set, but this program performed an operation which requires it.
+	at sun.java2d.HeadlessGraphicsEnvironment.getScreenDevices(HeadlessGraphicsEnvironment.java:72)
+	at org.apache.pivot.wtk.DesktopApplicationContext.main(DesktopApplicationContext.java:461)
+	at org.apache.pivot.wtk.DesktopApplicationContext.main(DesktopApplicationContext.java:802)
+	at ui.AVRSim.gui(AVRSim.java:44)
+	at ui.AVRSim.run(AVRSim.java:78)
+	at ui.Main.main(Main.java:134)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:606)
+	at com.simontuffs.onejar.Boot.run(Boot.java:340)
+	at com.simontuffs.onejar.Boot.main(Boot.java:166)
+2014-03-27 15:32:13,691 [main] FATAL ui.AVRSim - Encountered error during runtime.
+instructions.RuntimeError: Hit max number of jumps for label: endLabel:
+	at machine.MachineState.executeInstruction(MachineState.java:310)
+	at ui.AVRSim.runAssem(AVRSim.java:97)
+	at ui.AVRSim.run(AVRSim.java:82)
+	at ui.Main.main(Main.java:134)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:606)
+	at com.simontuffs.onejar.Boot.run(Boot.java:340)
+	at com.simontuffs.onejar.Boot.main(Boot.java:166)

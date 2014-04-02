@@ -1,0 +1,300 @@
+
+package mjparser;
+import java_cup.runtime.*;
+import java.util.*;
+import java.io.PrintWriter;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+
+
+parser code {:
+
+    public PrintWriter out; 
+    
+    public String programName;
+
+    public void unrecovered_syntax_error(Symbol cur_SymbolValue) {
+        report_fatal_error("Fatal syntax error", cur_SymbolValue);
+    }
+    
+    public void report_fatal_error(String message, Object info) {
+        report_error(message, info);
+        done_parsing();
+        Symbol SymbolValue = (Symbol)info;
+        mjparser.SymbolValue tok = (mjparser.SymbolValue)SymbolValue.value;
+        throw new mjparser.ParseException("Fatal parsing error", 
+                                          tok.line, tok.pos);
+    }
+    
+    public void report_error(String message, Object info) {
+        Symbol SymbolValue = (Symbol)info;
+        mjparser.SymbolValue tok = (mjparser.SymbolValue)SymbolValue.value;
+        System.err.println("[" + tok.line + "," + tok.pos + "] " 
+                               + message + " at " + tok.toString() );
+    }
+            
+:}
+
+/* Notice: all terminals declared here */
+terminal SymbolValue PLUS, MINUS, TIMES, LPAREN, RPAREN;
+terminal SymbolValue LBRACE, RBRACE;
+terminal SymbolValue BOOLEAN, INT;
+terminal SymbolValue BYTE;
+terminal SymbolValue MAIN, IMPORT;
+terminal SymbolValue IF, ELSE;
+terminal SymbolValue LT;
+terminal SymbolValue EQUAL;
+terminal SymbolValue AND, NOT;
+terminal SymbolValue WHILE;
+terminal SymbolValue COMMA, DOT;
+terminal SymbolValue NEW, PUBLIC, RETURN, STATIC;
+terminal SymbolValue STRING, VOID;
+terminal SymbolValue CLASS, EXTENDS;
+terminal SymbolValue LBRACKET, RBRACKET;
+terminal SymbolValue LENGTH;
+terminal SymbolValue SEMI;
+terminal SymbolValue ASSIGN;
+
+terminal SymbolValue MEGGY;
+terminal SymbolValue MEGGYCOLOR;
+terminal SymbolValue MEGGYBUTTON;
+terminal SymbolValue MEGGYTONE;
+terminal SymbolValue MEGGYSETPIXEL;
+terminal SymbolValue MEGGYSETAUXLEDS;
+terminal SymbolValue MEGGYTONESTART;
+terminal SymbolValue MEGGYDELAY;
+terminal SymbolValue MEGGYGETPIXEL;
+terminal SymbolValue MEGGYCHECKBUTTON;
+
+terminal SymbolValue INT_LITERAL, ID;
+terminal SymbolValue TRUE, FALSE;
+terminal SymbolValue COLOR_LITERAL, BUTTON_LITERAL, TONE_LITERAL;
+terminal SymbolValue THIS;
+terminal SymbolValue INTLITERAL;
+
+/* bogus terminal for unary precedence declaration */
+terminal UMINUS;
+
+
+non terminal program;
+non terminal Integer exp;
+non terminal statement;
+non terminal statement_list;
+non terminal main_class;
+
+/* Declare precedence and associativity  here */
+precedence left TIMES;
+precedence right UMINUS;
+
+
+/* Meggy Java Grammar */
+start with program;
+
+program ::= 
+    IMPORT MEGGY SEMI main_class
+    ;
+    
+main_class ::=
+        CLASS ID:name         
+            {: java.io.PrintStream sout 
+                    = new java.io.PrintStream(
+                        new java.io.FileOutputStream(name.lexeme+".java.s"));
+                parser.out = new PrintWriter(sout);
+                // Check filename is class name, if not exit with error message
+                //System.exit(0);   
+            :}
+        LBRACE PUBLIC STATIC VOID MAIN 
+        LPAREN STRING LBRACKET RBRACKET ID:param RPAREN
+        LBRACE 
+          {: 
+			// Meggy.setPixel( (byte)2, (byte)3, Meggy.Color.BLUE );
+			
+            System.out.println("Generate prolog using avrH.rtl.s");
+            InputStream mainPrologue=null;
+            BufferedReader reader=null;
+            try {
+                // The syntax for loading a text resource file 
+                // from a jar file here:
+                // http://www.rgagnon.com/javadetails/java-0077.html
+                mainPrologue 
+                    = this.getClass().getClassLoader().getResourceAsStream(
+                        "avrH.rtl.s");
+                reader = new BufferedReader(new 
+                    InputStreamReader(mainPrologue));
+
+                String line = null;
+                while ((line = reader.readLine()) != null) {
+                  parser.out.println(line);
+                }
+            } catch ( Exception e2) {
+                e2.printStackTrace();
+            }
+            finally{
+                try{
+                    if(mainPrologue!=null) mainPrologue.close();
+                    if(reader!=null) reader.close();
+                }
+                catch (IOException e) {
+                   e.printStackTrace();
+                }
+            }
+
+            
+          :}
+          MEGGYSETPIXEL LPAREN LPAREN BYTE RPAREN 
+          INT_LITERAL:expa 
+          {:
+              System.out.println("Generate assembly languages: first paramter");
+              
+              try{
+              	String num=String.valueOf(expa);
+              	String as="# Load constant int "+num+"\n";
+              	as+="ldi    r24,lo8("+num+")\n";
+    		as+="ldi    r25,hi8("+num+")\n";
+		as+="push    r25\n";
+		as+="push    r24\n";
+		
+		as+="# Casting int to byte by popping\n";
+		as+="# 2 bytes off stack and only pushing low order bits\n";
+		as+="# back on.  Low order bits are on top of stack.\n";
+		
+		as+="pop    r24\n";
+		as+="pop    r25\n";
+		as+="push    r24\n";
+
+              	parser.out.println(as);
+              }catch ( Exception e2) {
+                e2.printStackTrace();
+              }
+            
+          :}
+          COMMA LPAREN BYTE RPAREN 
+          INT_LITERAL:expb
+            {:
+              System.out.println("Generate assembly languages: second paramter");
+              
+              try{
+              	String num=String.valueOf(expb);
+              	String as="# Load constant int "+num+"\n";
+              	as+="ldi    r24,lo8("+num+")\n";
+    		as+="ldi    r25,hi8("+num+")\n";
+		as+="push    r25\n";
+		as+="push    r24\n";
+		
+		as+="# Casting int to byte by popping\n";
+		as+="# 2 bytes off stack and only pushing low order bits\n";
+		as+="# back on.  Low order bits are on top of stack.\n";
+		
+		as+="pop    r24\n";
+		as+="pop    r25\n";
+		as+="push    r24\n";
+
+              	parser.out.println(as);
+              }catch ( Exception e2) {
+                e2.printStackTrace();
+              }
+            
+            :}
+          COMMA 
+          COLOR_LITERAL:exp_col
+            {:
+              System.out.println("Generate assembly languages: color");
+              
+              try{
+              	String col=String.valueOf(exp_col);
+              	String num="0";
+              	if(col.equalsIgnoreCase("Meggy.Color.DARK")){
+              	  num="0";
+              	}
+              	else if(col.equalsIgnoreCase("Meggy.Color.RED")){
+              	  num="1";
+              	}
+              	if(col.equalsIgnoreCase("Meggy.Color.ORANGE")){
+              	  num="2";
+              	}
+              	if(col.equalsIgnoreCase("Meggy.Color.YELLOW")){
+              	  num="3";
+              	}
+              	if(col.equalsIgnoreCase("Meggy.Color.GREEN")){
+              	  num="4";
+              	}
+              	if(col.equalsIgnoreCase("Meggy.Color.BLUE")){
+              	  num="5";
+              	}
+              	if(col.equalsIgnoreCase("Meggy.Color.VIOLET")){
+              	  num="6";
+              	}
+              	if(col.equalsIgnoreCase("Meggy.Color.WHITE")){
+              	  num="7";
+              	}
+                String as="# Color expression "+col+"\n";
+                as+="ldi    r22,"+num+"\n";
+	        as+="# push one byte expression onto stack\n";
+	        as+="push   r22\n";
+	      
+	        as+="### Meggy.setPixel(x,y,color) call\n";
+	        as+="# load a one byte expression off stack\n";
+	        as+="pop    r20\n";
+	        as+="# load a one byte expression off stack\n";
+	        as+="pop    r22\n";
+	        as+="# load a one byte expression off stack\n";
+	        as+="pop    r24\n";
+	        as+="call   _Z6DrawPxhhh\n";
+	        as+="call   _Z12DisplaySlatev\n";
+	        parser.out.println(as);
+              	
+              }catch ( Exception e2) {
+                e2.printStackTrace();
+              }
+            
+            :}
+          RPAREN SEMI
+        //statement_list:list RBRACE
+          //{:
+          //:}
+        RBRACE
+        RBRACE 
+          {:
+			System.out.println("Generate epilog using avrF.rtl.s");
+            InputStream mainEpilogue=null;
+            BufferedReader epireader=null;
+            try {
+                // The syntax for loading a text resource file 
+                // from a jar file here:
+                // http://www.rgagnon.com/javadetails/java-0077.html
+                mainEpilogue 
+                    = this.getClass().getClassLoader().getResourceAsStream(
+                        "avrF.rtl.s");
+                epireader = new BufferedReader(new 
+                    InputStreamReader(mainEpilogue));
+
+                String line = null;
+                while ((line = epireader.readLine()) != null) {
+                  parser.out.println(line);
+                }
+            } catch ( Exception e2) {
+                e2.printStackTrace();
+            }
+            finally{
+                try{
+                    if(mainEpilogue!=null) mainEpilogue.close();
+                    if(epireader!=null) epireader.close();
+                }
+                catch (IOException e) {
+                   e.printStackTrace();
+                }
+            }
+            parser.out.flush();
+          :}
+          
+    ;
+
+//Goal::="import" "meggy.Meggy" ";" main_class ;
+
+
+
