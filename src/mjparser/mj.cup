@@ -258,6 +258,25 @@ stmt ::= LBRACE:l stmts:list RBRACE
 	        	as+="call   _Z12DisplaySlatev\n";
 				parser.out.println(as);
 			:}
+		| MEGGYTONESTART:n LPAREN exp:x COMMA exp:y RPAREN SEMI
+			{:
+				RESULT = new MeggyToneStart(n.line, n.pos, x, y);
+				try{
+	              	String num=String.valueOf(n);
+	              	String as="### Meggy.toneStart(tone, time_ms) call";
+	              	as+="# load a two byte expression off stack\n";
+	              	as+="pop    r22\n";
+					as+="pop    r23\n";
+					as+="# load a two byte expression off stack\n";
+					as+="pop    r24\n";
+					as+="pop    r25\n";
+					as+="call   _Z10Tone_Startjj\n";
+					parser.out.println(as);
+					
+              	}catch ( Exception e2) {
+                	e2.printStackTrace();
+              	}
+			:}
 		| ifoption
 		| WHILE LPAREN exp RPAREN LBRACE
 		{:
@@ -1119,6 +1138,43 @@ exp ::=INT_LITERAL:n
 				sym.setExpType(RESULT,Type.INT);
 			}
 		:}
+		|TONE_LITERAL:n
+			{:
+				RESULT=new ToneLiteral(n.line,n.pos,n.lexeme,n.value);
+				try{
+					String tone=String.valueOf(n);
+					String num="0";
+					
+					if(tone.equalsIgnoreCase("Meggy.Tone.C3")) num="61157";
+					if(tone.equalsIgnoreCase("Meggy.Tone.Cs3")) num="57724";
+		            if(tone.equalsIgnoreCase("Meggy.Tone.D3")) num="54485";
+		            if(tone.equalsIgnoreCase("Meggy.Tone.Ds3")) num="51427";
+		            if(tone.equalsIgnoreCase("Meggy.Tone.E3")) num="48541";
+		            if(tone.equalsIgnoreCase("Meggy.Tone.F3")) num="45816";
+		            if(tone.equalsIgnoreCase("Meggy.Tone.Fs3")) num="43243";
+		            if(tone.equalsIgnoreCase("Meggy.Tone.G3")) num="40816";
+		            if(tone.equalsIgnoreCase("Meggy.Tone.Gs3")) num="38526";
+		            if(tone.equalsIgnoreCase("Meggy.Tone.A3")) num="36363";
+		            if(tone.equalsIgnoreCase("Meggy.Tone.As3")) num="34323";
+		            if(tone.equalsIgnoreCase("Meggy.Tone.B3")) num="32397";
+					
+	
+		            String as="# Tone expression "+tone+"\n";
+		            as+="ldi	r25,hi8("+num+")\n";
+		            as+="ldi	r24,lo8("+num+")\n";
+		            as+="# push two byte expression onto stack\n";
+		            as+="push	r25\n";
+		            as+="push	r24\n";
+	               	
+		        	parser.out.println(as);
+
+		        	SymTable sym=new SymTable();
+		        	sym.setExpType(RESULT,Type.INT);
+              	
+                }catch ( Exception e2) {
+                	e2.printStackTrace();
+                }
+			:}
     ;
 
 

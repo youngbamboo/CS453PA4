@@ -63,7 +63,8 @@ $(PROG).jar: $(SRC_DIR)/$(PROG)Driver.class
 
 #### mj parser
 $(PARSE_DIR)/mj.java: $(PARSE_DIR)/mj.cup
-	java -jar java-cup-11a.jar -parser  mj -dump $(PARSE_DIR)/mj.cup >& javacup.dump
+	#java -jar java-cup-11a.jar -parser  mj -dump $(PARSE_DIR)/mj.cup >& javacup.dump
+	java -jar java-cup-11a.jar -parser  mj -dump $(PARSE_DIR)/mj.cup > javacup.dump 2>&1
 	mv -f sym.java $(PARSE_DIR)/
 	mv -f mj.java $(PARSE_DIR)/
 
