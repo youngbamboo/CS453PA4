@@ -1,7 +1,7 @@
 package symtable;
 import java.util.*;
 import ast.node.*;
-
+import java.util.Stack;
 import exceptions.InternalException;
 
 /** 
@@ -15,6 +15,8 @@ import exceptions.InternalException;
  * WB: Simplified to only expression types
  */
 public class SymTable {
+	private Scope mGlobalScope;
+	private Stack<Scope> mScopeStack;
     private final static HashMap<Node,Type> mExpType = new HashMap<Node,Type>();
 
     public SymTable() {
@@ -27,6 +29,7 @@ public class SymTable {
      */
     public STE lookup(String sym) {
         /* WRITE ME */
+		return null;
     }
 
     /** Lookup a symbol in innermost scope only.
