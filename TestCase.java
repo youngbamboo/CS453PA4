@@ -14,8 +14,13 @@ class TestCase {
  public static void main(String[] whatever){
  
  
+			if((byte)2 < 3) {
+            Meggy.setPixel((byte)3, (byte)2, Meggy.Color.GREEN);
+        }
 
-            Meggy.toneStart(Meggy.Tone.C3, 50);
+       if(2 < (byte)3) {
+            Meggy.setPixel((byte)2, (byte)3, Meggy.Color.GREEN);
+        }
  			
 		}
 		
